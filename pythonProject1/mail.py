@@ -2,15 +2,20 @@ import json
 import os
 import hashlib
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, scrolledtext
 
-# Путь к файлу с данными пользователей
+# Путь к файлу с данными пользователей и сообщений
 USERS_FILE = 'users.json'
+MESSAGES_FILE = 'messages.json'
 
-# Проверка, существует ли файл с данными пользователей, и создание пустого файла, если не существует
+# Проверка, существуют ли файлы с данными, и создание пустых файлов, если они не существуют
 if not os.path.exists(USERS_FILE):
     with open(USERS_FILE, 'w') as f:
         json.dump({}, f)
+
+if not os.path.exists(MESSAGES_FILE):
+    with open(MESSAGES_FILE, 'w') as f:
+        json.dump([], f)
 
 # Функция для хеширования паролей
 def hash_password(password):
@@ -24,7 +29,17 @@ def load_users():
 # Функция для сохранения данных пользователей в файл
 def save_users(users):
     with open(USERS_FILE, 'w') as f:
-        json.dump(users, f)
+        json.dump(users, f, indent=4)
+
+# Функция для загрузки сообщений из файла
+def load_messages():
+    with open(MESSAGES_FILE, 'r') as f:
+        return json.load(f)
+
+# Функция для сохранения сообщений в файл
+def save_messages(messages):
+    with open(MESSAGES_FILE, 'w') as f:
+        json.dump(messages, f, indent=4)
 
 # Функция для регистрации нового пользователя
 def register(username, password):
@@ -32,7 +47,9 @@ def register(username, password):
     if username in users:
         messagebox.showerror("Ошибка", "Пользователь с таким именем уже существует.")
         return
-    users[username] = hash_password(password)
+    users[username] = {
+        'password': hash_password(password)
+    }
     save_users(users)
     messagebox.showinfo("Успех", "Регистрация успешна!")
 
@@ -42,12 +59,13 @@ def login(username, password):
     if username not in users:
         messagebox.showerror("Ошибка", "Пользователь с таким именем не найден.")
         return
-    if users[username] == hash_password(password):
+    if users[username]['password'] == hash_password(password):
         messagebox.showinfo("Успех", "Авторизация успешна!")
+        open_chat_window(username)
     else:
         messagebox.showerror("Ошибка", "Неверный пароль.")
 
-# Функция для окна регистрации
+# Функция для открытия окна регистрации
 def registration_window():
     reg_win = tk.Toplevel(root)
     reg_win.title("Регистрация")
@@ -62,7 +80,7 @@ def registration_window():
 
     tk.Button(reg_win, text="Регистрация", command=lambda: register(username_entry.get(), password_entry.get())).grid(row=2, columnspan=2)
 
-# Функция для окна авторизации
+# Функция для открытия окна авторизации
 def login_window():
     login_win = tk.Toplevel(root)
     login_win.title("Авторизация")
@@ -76,6 +94,39 @@ def login_window():
     password_entry.grid(row=1, column=1)
 
     tk.Button(login_win, text="Войти", command=lambda: login(username_entry.get(), password_entry.get())).grid(row=2, columnspan=2)
+
+# Функция для открытия окна чата
+def open_chat_window(username):
+    chat_win = tk.Toplevel(root)
+    chat_win.title("Чат")
+
+    chat_text = scrolledtext.ScrolledText(chat_win, state='disabled')
+    chat_text.grid(row=0, column=0, columnspan=2)
+
+    message_entry = tk.Entry(chat_win)
+    message_entry.grid(row=1, column=0)
+
+    def send_message():
+        message = message_entry.get()
+        if message:
+            messages = load_messages()
+            messages.append({'user': username, 'message': message})
+            save_messages(messages)
+            update_chat(chat_text, messages)
+            message_entry.delete(0, tk.END)
+
+    tk.Button(chat_win, text="Отправить", command=send_message).grid(row=1, column=1)
+
+    # Загрузка и отображение существующих сообщений
+    messages = load_messages()
+    update_chat(chat_text, messages)
+
+def update_chat(chat_text, messages):
+    chat_text.config(state='normal')
+    chat_text.delete(1.0, tk.END)
+    for msg in messages:
+        chat_text.insert(tk.END, f"{msg['user']}: {msg['message']}\n")
+    chat_text.config(state='disabled')
 
 # Главное окно
 root = tk.Tk()
